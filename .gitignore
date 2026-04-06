@@ -2,6 +2,7 @@
 *.egg-info
 *.pyc
 .python-version
+.env
 env/
 venv/
 worker/api.log*

@@ -18,3 +18,23 @@ The montytest server:
 - Knows how to stop tests when they are statistically significant and publishes the final tests results.
 
 To get more information, such as the worker/server install and configuration instructions, visit the [montytest Wiki](https://github.com/official-monty/montytest/wiki).
+
+### Running the server with Docker Compose
+
+This repository now includes a Docker Compose setup for the server and MongoDB.
+
+1. Copy `.env.example` to `.env`.
+2. Set `MONTYTEST_SECRET` to a long random string.
+3. Start the stack:
+
+   ```sh
+   docker compose up --build
+   ```
+
+The server will be available on `http://localhost:6543`.
+
+If you want to create the recommended MongoDB indexes after the stack starts, run:
+
+```sh
+docker compose run --rm server python utils/create_indexes.py users workers actions runs pgns vtd nns
+```
