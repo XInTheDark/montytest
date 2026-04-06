@@ -75,3 +75,9 @@ class TestNN(unittest.TestCase):
         del net["_id"]
         new_net["downloads"] = 1
         self.assertEqual(net, new_net)
+
+    def test_delete_nn(self):
+        self.rundb.upload_nn(self.user, self.name)
+        self.assertIsNotNone(self.rundb.get_nn(self.name))
+        self.rundb.delete_nn(self.name)
+        self.assertIsNone(self.rundb.get_nn(self.name))

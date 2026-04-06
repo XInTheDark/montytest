@@ -128,6 +128,7 @@ def main(global_config, **settings):
     config.add_route("home", "/")
     config.add_route("login", "/login")
     config.add_route("nn_upload", "/upload")
+    config.add_route("nn_delete", "/nns/delete")
     config.add_route("logout", "/logout")
     config.add_route("signup", "/signup")
     config.add_route("user", "/user/{username}")

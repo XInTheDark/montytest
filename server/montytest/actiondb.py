@@ -146,6 +146,13 @@ class ActionDb:
             nn=nn,
         )
 
+    def delete_nn(self, username=None, nn=None):
+        self.insert_action(
+            action="delete_nn",
+            username=username,
+            nn=nn,
+        )
+
     def modify_run(self, username=None, run=None, message=None):
         self.insert_action(
             action="modify_run",

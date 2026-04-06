@@ -119,6 +119,12 @@ def ensure_logged_in(request):
     return userid
 
 
+def can_manage_nn(request, nn):
+    return nn["user"] == request.authenticated_userid or request.has_permission(
+        "approve_run"
+    )
+
+
 @view_config(
     route_name="login",
     renderer="login.mak",
@@ -353,6 +359,51 @@ def upload(request):
     return HTTPFound(location=request.route_url("nns"))
 
 
+@view_config(route_name="nn_delete", require_csrf=True, request_method="POST")
+def nn_delete(request):
+    ensure_logged_in(request)
+
+    next_page = request.POST.get("next", "")
+    if not next_page.startswith("/"):
+        next_page = request.route_url("nns")
+
+    nn_name = request.POST.get("nn", "")
+    nn = request.rundb.get_nn(nn_name)
+    if nn is None:
+        request.session.flash("Network does not exist", "error")
+        return HTTPFound(location=next_page)
+
+    if not can_manage_nn(request, nn):
+        request.session.flash(
+            "Only the uploader or an approver can delete this network", "error"
+        )
+        return HTTPFound(location=next_page)
+
+    try:
+        request.rundb.delete_nn(nn_name)
+        request.actiondb.delete_nn(
+            username=request.authenticated_userid,
+            nn=nn_name,
+        )
+    except Exception as e:
+        print("Error deleting the network metadata:", e)
+        request.session.flash("Error deleting the network metadata", "error")
+        return HTTPFound(location=next_page)
+
+    try:
+        get_nn_path(request, nn_name).unlink(missing_ok=True)
+    except Exception as e:
+        print("Error deleting the network file:", e)
+        request.session.flash(
+            "Deleted network metadata, but failed to remove the network file",
+            "error",
+        )
+        return HTTPFound(location=next_page)
+
+    cached_flash(request, "Deleted network")
+    return HTTPFound(location=next_page)
+
+
 @view_config(route_name="logout", require_csrf=True, request_method="POST")
 def logout(request):
     session = request.session
@@ -474,6 +525,8 @@ def nns(request):
         "nns": nns,
         "pages": pages,
         "master_only": request.cookies.get("master_only") == "true",
+        "approver": request.has_permission("approve_run"),
+        "authenticated_userid": request.authenticated_userid,
     }
 
 

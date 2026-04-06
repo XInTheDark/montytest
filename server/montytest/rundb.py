@@ -716,6 +716,9 @@ class RunDb:
     def upload_nn(self, userid, name):
         self.write_nn({"user": userid, "name": name, "downloads": 0})
 
+    def delete_nn(self, name):
+        self.nndb.delete_one({"name": name})
+
     def update_nn(self, net):
         net = copy.copy(net)  # avoid side effects
         net.pop("downloads", None)

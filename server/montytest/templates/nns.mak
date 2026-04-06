@@ -68,6 +68,7 @@
         <th>First test</th>
         <th>Last test</th>
         <th style="text-align:right">Downloads</th>
+        <th></th>
       </tr>
     </thead>
     <tbody>
@@ -93,6 +94,21 @@
               % endif
             </td>
             <td style="text-align:right">${nn.get('downloads', 0)}</td>
+            <td class="text-end">
+              % if authenticated_userid and (authenticated_userid == nn['user'] or approver):
+                <form
+                  method="POST"
+                  action="${request.route_url('nn_delete')}"
+                  class="d-inline"
+                  onsubmit="return confirm('Delete ${nn['name']}? This cannot be undone.');"
+                >
+                  <input type="hidden" name="csrf_token" value="${request.session.get_csrf_token()}">
+                  <input type="hidden" name="nn" value="${nn['name']}">
+                  <input type="hidden" name="next" value="${request.path_qs}">
+                  <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
+                </form>
+              % endif
+            </td>
           </tr>
         % endif
       % endfor
