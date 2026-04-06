@@ -1207,6 +1207,7 @@ def del_tasks(run):
 def update_nets(request, run):
     run_id = str(run["_id"])
     data = run["args"]
+    now = datetime.now(timezone.utc)
     base_nets, new_nets, missing_nets = [], [], []
     for net_name in set(data["base_nets"]) | set(data["new_nets"]):
         net = request.rundb.get_nn(net_name)
@@ -1229,13 +1230,22 @@ def update_nets(request, run):
     if run["base_same_as_master"]:
         for net in base_nets:
             if "is_master" not in net:
+                if "first_test" not in net and "last_test" in net:
+                    net["first_test"] = copy.deepcopy(net["last_test"])
+                elif "first_test" not in net:
+                    net["first_test"] = {"id": run_id, "date": now}
+                if "last_test" not in net:
+                    net["last_test"] = copy.deepcopy(net["first_test"])
                 net["is_master"] = True
                 request.rundb.update_nn(net)
 
     for net in new_nets:
         if "first_test" not in net:
-            net["first_test"] = {"id": run_id, "date": datetime.now(timezone.utc)}
-        net["last_test"] = {"id": run_id, "date": datetime.now(timezone.utc)}
+            if "last_test" in net:
+                net["first_test"] = copy.deepcopy(net["last_test"])
+            else:
+                net["first_test"] = {"id": run_id, "date": now}
+        net["last_test"] = {"id": run_id, "date": now}
         request.rundb.update_nn(net)
 
 

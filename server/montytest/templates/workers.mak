@@ -61,6 +61,11 @@
 
 <h2>Workers Management</h2>
 
+<div class="alert alert-info">
+  This page is for managing <strong>blocked workers</strong>.
+  Running workers appear on the <a href="/tests">Tests</a> page in the Workers section.
+</div>
+
 % if show_admin:
   <h3>${worker_name}</h3>
   <form method="POST">
