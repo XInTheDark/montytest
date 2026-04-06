@@ -1,5 +1,4 @@
 import copy
-import hashlib
 import html
 import json
 import os
@@ -11,6 +10,13 @@ from pathlib import Path
 
 import montytest.stats.stat_util
 import requests
+from montytest.nn_storage import (
+    NNSizeLimitExceeded,
+    NNValidationError,
+    get_nn_path,
+    get_nn_upload_limit_mb,
+    store_uploaded_nn,
+)
 from montytest.schemas import RUN_VERSION, runs_schema, short_worker_name
 from montytest.util import (
     email_valid,
@@ -28,7 +34,6 @@ from montytest.util import (
 from pyramid.httpexceptions import HTTPFound, HTTPNotFound
 from pyramid.security import forget, remember
 from pyramid.view import forbidden_view_config, notfound_view_config, view_config
-from requests.exceptions import ConnectionError, HTTPError
 from vtjson import ValidationError, union, validate
 
 HTTP_TIMEOUT = 15.0
@@ -283,7 +288,6 @@ def upload(request):
     try:
         filename = request.POST["network"].filename
         input_file = request.POST["network"].file
-        network = input_file.read()
     except AttributeError:
         request.session.flash(
             "Specify a network file with the 'Choose File' button", "error"
@@ -293,66 +297,58 @@ def upload(request):
         print("Error reading the network file:", e)
         request.session.flash("Error reading the network file", "error")
         return {}
-    if request.rundb.get_nn(filename):
-        request.session.flash("Network already exists", "error")
-        return {}
     errors = []
-    # if len(network) >= 120000000:
-    #     errors.append("Network must be < 120MB")
     if not re.match(r"^nn-[0-9a-f]{12}\.network$", filename):
         errors.append('Name must match "nn-[SHA256 first 12 digits].network"')
-    hash = hashlib.sha256(network).hexdigest()
-    if hash[:12] != filename[3:15]:
-        errors.append(
-            "Wrong SHA256 hash: " + hash[:12] + " Filename: " + filename[3:15]
-        )
     if errors:
         for error in errors:
             request.session.flash(error, "error")
         return {}
-    try:
-        with open(os.path.expanduser("~/montytest.upload"), "r") as f:
-            upload_server = f.read().strip()
-    except Exception as e:
-        print("Network upload not configured:", e)
-        request.session.flash("Network upload not configured", "error")
-        return {}
-    try:
-        error = ""
-        files = {"upload": (filename, network)}
-        response = requests.post(upload_server, files=files, timeout=HTTP_TIMEOUT * 20)
-        response.raise_for_status()
-    except ConnectionError as e:
-        print("Failed to connect to the net server:", e)
-        error = "Failed to connect to the net server"
-    except HTTPError as e:
-        print("Network upload failed:", e)
-        if response.status_code == 409:
-            error = "Post request failed: network {} already uploaded".format(filename)
-        elif response.status_code == 500:
-            error = "Post request failed: net server failed to write {}".format(
-                filename
-            )
-        else:
-            error = "Post request failed: other HTTP error"
-    except Exception as e:
-        print("Error during connection:", e)
-        error = "Post request for the network upload failed"
 
-    if error:
-        request.session.flash(error, "error")
-        return {}
-
-    if request.rundb.get_nn(filename):
+    if request.rundb.get_nn(filename) or get_nn_path(request, filename).exists():
         request.session.flash("Network already exists", "error")
         return {}
 
-    request.rundb.upload_nn(request.authenticated_userid, filename)
+    try:
+        store_uploaded_nn(request, filename, input_file)
+    except NNSizeLimitExceeded:
+        request.session.flash(
+            f"Network must be < {get_nn_upload_limit_mb(request)}MB", "error"
+        )
+        return {}
+    except NNValidationError as e:
+        request.session.flash(str(e), "error")
+        return {}
+    except FileExistsError:
+        request.session.flash("Network already exists", "error")
+        return {}
+    except Exception as e:
+        print("Error storing the network file:", e)
+        request.session.flash("Error storing the network file", "error")
+        return {}
 
-    request.actiondb.upload_nn(
-        username=request.authenticated_userid,
-        nn=filename,
-    )
+    if request.rundb.get_nn(filename):
+        try:
+            get_nn_path(request, filename).unlink()
+        except FileNotFoundError:
+            pass
+        request.session.flash("Network already exists", "error")
+        return {}
+
+    try:
+        request.rundb.upload_nn(request.authenticated_userid, filename)
+        request.actiondb.upload_nn(
+            username=request.authenticated_userid,
+            nn=filename,
+        )
+    except Exception as e:
+        print("Error recording the uploaded network:", e)
+        try:
+            get_nn_path(request, filename).unlink()
+        except FileNotFoundError:
+            pass
+        request.session.flash("Error recording the uploaded network", "error")
+        return {}
 
     return HTTPFound(location=request.route_url("nns"))
 

@@ -22,8 +22,12 @@ services:
     environment:
       MONTYTEST_HOST: mongo
       MONTYTEST_SECRET: ${MONTYTEST_SECRET:?set MONTYTEST_SECRET in your shell or a local .env file}
+      MONTYTEST_NN_STORAGE_PATH: /data/nns
+      MONTYTEST_NN_UPLOAD_LIMIT_MB: ${MONTYTEST_NN_UPLOAD_LIMIT_MB:-512}
     ports:
       - "${MONTYTEST_HTTP_PORT:-6543}:6543"
+    volumes:
+      - nn-data:/data/nns
     healthcheck:
       test:
         [
@@ -39,3 +43,4 @@ services:
 
 volumes:
   mongo-data:
+  nn-data:

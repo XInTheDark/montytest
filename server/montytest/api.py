@@ -5,17 +5,17 @@ import re
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 
+from montytest.nn_storage import get_nn_path
 from montytest.schemas import api_access_schema, api_schema, gzip_data
 from montytest.stats.stat_util import SPRT_elo, get_elo
 from montytest.util import strip_run, worker_name
 from pyramid.httpexceptions import (
     HTTPBadRequest,
     HTTPException,
-    HTTPFound,
     HTTPNotFound,
     HTTPUnauthorized,
 )
-from pyramid.response import FileIter, Response
+from pyramid.response import FileIter, FileResponse, Response
 from pyramid.view import exception_view_config, view_config, view_defaults
 from vtjson import ValidationError, validate
 
@@ -662,12 +662,23 @@ class UserApi(GenericApi):
             self.handle_error(
                 f"The network {nn_id} does not exist", exception=HTTPNotFound
             )
-        else:
-            self.request.rundb.increment_nn_downloads(self.request.matchdict["id"])
 
-        return HTTPFound(
-            "https://tests.montychess.org/nn/" + self.request.matchdict["id"]
+        nn_path = get_nn_path(self.request, nn_id)
+        if not nn_path.is_file():
+            self.handle_error(
+                f"The network file {nn_id} is not available on this server",
+                exception=HTTPNotFound,
+            )
+
+        self.request.rundb.increment_nn_downloads(nn_id)
+
+        response = FileResponse(
+            str(nn_path),
+            request=self.request,
+            content_type="application/octet-stream",
         )
+        response.headers["Content-Disposition"] = f'attachment; filename="{nn_id}"'
+        return response
 
 
 class InternalApi(GenericApi):

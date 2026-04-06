@@ -33,6 +33,10 @@ This repository now includes a Docker Compose setup for the server and MongoDB.
 
 The server will be available on `http://localhost:6543`.
 
+Neural networks now upload and download directly from the server by default.
+Docker Compose mounts a persistent volume at `/data/nns` for `.network` files.
+To allow larger uploads, increase `MONTYTEST_NN_UPLOAD_LIMIT_MB` in `.env`.
+
 If you want to create the recommended MongoDB indexes after the stack starts, run:
 
 ```sh

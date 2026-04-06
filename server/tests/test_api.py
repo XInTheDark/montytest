@@ -3,8 +3,11 @@ import copy
 import gzip
 import io
 import sys
+import tempfile
 import unittest
 from datetime import datetime, timezone
+from pathlib import Path
+from types import SimpleNamespace
 
 from montytest.api import WORKER_VERSION, UserApi, WorkerApi
 from pyramid.httpexceptions import HTTPBadRequest, HTTPUnauthorized
@@ -157,6 +160,7 @@ class TestApi(unittest.TestCase):
     def tearDownClass(cls):
         cls.rundb.scheduler.stop()
         cls.rundb.runs.delete_many({})
+        cls.rundb.nndb.delete_many({})
         cls.rundb.userdb.users.delete_many({"username": cls.username})
         cls.rundb.userdb.clear_cache()
         cls.rundb.userdb.user_cache.delete_many({"username": cls.username})
@@ -209,6 +213,28 @@ class TestApi(unittest.TestCase):
         response = UserApi(request).get_elo()
         # /api/get_elo only works for SPRT
         self.assertFalse(response)
+
+    def test_download_nn(self):
+        nn_name = "nn-0000000000a0.network"
+        self.rundb.upload_nn(self.username, nn_name)
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            nn_path = Path(tempdir) / nn_name
+            nn_path.write_bytes(b"network-bytes")
+
+            request = DummyRequest(rundb=self.rundb, matchdict={"id": nn_name})
+            request.registry = SimpleNamespace(
+                settings={"montytest.nn_storage_path": tempdir}
+            )
+
+            response = UserApi(request).download_nn()
+
+            self.assertEqual(response.status_int, 200)
+            self.assertEqual(
+                response.headers["Content-Disposition"],
+                f'attachment; filename="{nn_name}"',
+            )
+            self.assertEqual(self.rundb.get_nn(nn_name)["downloads"], 1)
 
     def test_request_task(self):
         stop_all_runs(self)
