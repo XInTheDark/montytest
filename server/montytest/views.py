@@ -297,8 +297,8 @@ def upload(request):
         request.session.flash("Network already exists", "error")
         return {}
     errors = []
-    if len(network) >= 120000000:
-        errors.append("Network must be < 120MB")
+    # if len(network) >= 120000000:
+    #     errors.append("Network must be < 120MB")
     if not re.match(r"^nn-[0-9a-f]{12}\.network$", filename):
         errors.append('Name must match "nn-[SHA256 first 12 digits].network"')
     hash = hashlib.sha256(network).hexdigest()
